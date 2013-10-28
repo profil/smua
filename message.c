@@ -25,8 +25,11 @@ int message_list_contains(struct message_list **list, const char *path) {
 }
 
 void message_list_destroy(struct message_list **list) {
-	struct message_list *iter;
-	for(iter = *list; iter != NULL; iter = iter->next) {
+	struct message_list *iter = *list;
+	struct message_list *next;
+
+	while(iter != NULL) {
+		next = iter->next;
 		free(iter->m->path);
 		free(iter->m->to);
 		free(iter->m->from);
@@ -34,9 +37,8 @@ void message_list_destroy(struct message_list **list) {
 		free(iter->m->date);
 		free(iter->m);
 		free(iter);
+		iter = next;
 	}
-	free(*list);
-	*list = NULL;
 }
 
 /* Allocates and returns data, make sure to free this later */
