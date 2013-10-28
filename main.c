@@ -8,55 +8,6 @@
  * Decide to use line length of 78 or 998 */
 #define LINE_LEN 1001 /* 998 + CR + LF + '\0' */
 
-/* Must free the returned pointer from this function */
-char *get_field(char *field, const char *filename) {
-	FILE *fp;
-	char buf[LINE_LEN];
-	char *data;
-	
-	data = malloc(LINE_LEN);
-	if(data == NULL) {
-		fprintf(stderr, "Cannot allocate memory.\n");
-		return NULL;
-	}
-
-	strcpy(data, "(empty)");
-
-	fp = fopen(filename, "r");
-	if(fp == NULL) {
-		fprintf(stderr, "Cannot open file '%s'\n", filename);
-		return NULL;
-	}
-
-	while(!feof(fp)) {
-		fgets(buf, LINE_LEN, fp);
-		if(!strncmp(field, buf, strlen(field))) {
-			strcpy(data, buf + strlen(field));
-
-			/* This takes care of "folding", muliple-line representation
-			 * See 2.2.3 in RFC5322 */
-			while(!feof(fp)) {
-				fgets(buf, LINE_LEN, fp);
-				if(buf[0] == ' ' || buf[0] == '\t') {
-					data = realloc(data, strlen(data) + LINE_LEN);
-					strcpy(data + strlen(data), buf);
-				}
-				else
-					break;
-			}
-				
-			/* Remove trailing newline */
-			if(data[strlen(data) - 1] == '\n') {
-				data[strlen(data) - 1] = '\0';
-			}
-			break;
-		}
-	}
-
-	fclose(fp);
-	return data;
-}
-
 /* Maildir!
  * http://cr.yp.to/proto/maildir.html */
 struct flags {
@@ -81,8 +32,6 @@ struct message_list {
 int message_list_contains(struct message_list **list, const char *path) {
 	struct message_list *iter;
 	for(iter = *list; iter != NULL; iter = iter->next) {
-		if(iter->m == NULL)
-			continue;
 		if(!strncmp(iter->m->path, path, strlen(iter->m->path)))
 			return 1;
 	}
@@ -104,12 +53,66 @@ void message_list_destroy(struct message_list **list) {
 	*list = NULL;
 }
 
-/* Will allocate memory and put into linked list cache */
+/* Allocates and returns data, make sure to free this later */
+char *get_field(const char *field, FILE **fp) {
+	char buf[LINE_LEN];
+	char *data = NULL;
+
+	data = malloc(LINE_LEN);
+	if(data == NULL) {
+		fprintf(stderr, "Cannot allocate memory.\n");
+		return NULL;
+	}
+	strcpy(data, "(empty)");
+
+	while(!feof(*fp)) {
+		fgets(buf, LINE_LEN, *fp);
+		if(!strncmp(buf, field, strlen(field))) {
+			strcpy(data, buf + strlen(field));
+			/* This takes care of "folding", muliple-line representation
+			 * See 2.2.3 in RFC5322 */
+			while(!feof(*fp)) {
+				fgets(buf, LINE_LEN, *fp);
+				if(buf[0] == ' ' || buf[0] == '\t') {
+					data = realloc(data, strlen(data) + LINE_LEN);
+					strcpy(data + strlen(data), buf);
+				}
+				else
+					break;
+			}
+				
+			/* Remove trailing newline */
+			if(data[strlen(data) - 1] == '\n') {
+				data[strlen(data) - 1] = '\0';
+			}
+			break;
+		}
+	}
+	return data;
+}
+
+
+void populate_message_fields(struct message *m, const char *filename) {
+	FILE *fp;
+
+	fp = fopen(filename, "r");
+	if(fp == NULL) {
+		fprintf(stderr, "Cannot open file '%s'\n", filename);
+		return;
+	}
+	m->subject = get_field("Subject: ", &fp);
+	m->to = get_field("To: ", &fp);
+	m->from = get_field("From: ", &fp);
+	m->date = get_field("Date: ", &fp);
+
+	fclose(fp);
+}
+
 void readmail(const char *dirname, struct message_list **cache) {
 	DIR *dp;
 	struct dirent *ep;
 	struct message_list *cur, *iter;
-	char *path;
+	char path[256];
 
 	dp = opendir(dirname);
 	if(dp == NULL) {
@@ -118,41 +121,32 @@ void readmail(const char *dirname, struct message_list **cache) {
 	}
 
 	while((ep = readdir(dp)) != NULL) {
-		path = malloc(strlen(dirname) + strlen(ep->d_name) + 2);
-		if(path == NULL) {
-			fprintf(stderr, "Cannot allocate memory.\n");
-			return;
-		}
 		snprintf(path, strlen(dirname) + strlen(ep->d_name) + 2, "%s/%s", dirname, ep->d_name);
 		if (!strcmp(ep->d_name, ".") || !strcmp(ep->d_name, "..")) {
-			free(path);
 			continue;
 		}
 		else if(message_list_contains(cache, path)) {
-			free(path);
 			continue;
 		}
 		else {
+			cur = NULL;
+			cur->m = NULL;
+			cur->m->path = NULL;
+
 			cur = malloc(sizeof(struct message_list));
-			if(cur == NULL) {
-				fprintf(stderr, "Cannot allocate memory.\n");
-				return;
-			}
 			cur->m = malloc(sizeof(struct message));
-			if(cur->m == NULL) {
-				fprintf(stderr, "Cannot allocate memory.\n");
-				return;
-			}
 			cur->m->path = malloc(strlen(dirname) + strlen(ep->d_name) + 2);
-			if(cur->m->path == NULL) {
+			if(cur == NULL || cur->m == NULL || cur->m->path == NULL) {
 				fprintf(stderr, "Cannot allocate memory.\n");
+				free(cur);
+				free(cur->m);
+				free(cur->m->path);
 				return;
 			}
+
 			strcpy(cur->m->path, path);
-			cur->m->subject = get_field("Subject: ", path);
-			cur->m->to = get_field("To: ", path);
-			cur->m->from = get_field("From: ", path);
-			cur->m->date = get_field("Date: ", path);
+			populate_message_fields(cur->m, path);
+
 			cur->next = NULL;
 
 			if(*cache == NULL) {
@@ -167,7 +161,6 @@ void readmail(const char *dirname, struct message_list **cache) {
 				}
 			}
 		}
-		free(path);
 	}
 
 	closedir(dp);
@@ -176,8 +169,6 @@ void readmail(const char *dirname, struct message_list **cache) {
 
 int main(int argc, char *argv[]) {
 	struct message_list *cache = NULL;
-	struct message_list *iter;
-	int i;
 
 	readmail("mail", &cache);
 
