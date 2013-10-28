@@ -112,7 +112,7 @@ void readmail(const char *dirname, struct message_list **cache) {
 	DIR *dp;
 	struct dirent *ep;
 	struct message_list *cur, *iter;
-	char path[256];
+	char path[1024];
 
 	dp = opendir(dirname);
 	if(dp == NULL) {
@@ -130,12 +130,14 @@ void readmail(const char *dirname, struct message_list **cache) {
 		}
 		else {
 			cur = NULL;
-			cur->m = NULL;
-			cur->m->path = NULL;
-
 			cur = malloc(sizeof(struct message_list));
+
+			cur->m = NULL;
 			cur->m = malloc(sizeof(struct message));
+			
+			cur->m->path = NULL;
 			cur->m->path = malloc(strlen(dirname) + strlen(ep->d_name) + 2);
+			
 			if(cur == NULL || cur->m == NULL || cur->m->path == NULL) {
 				fprintf(stderr, "Cannot allocate memory.\n");
 				free(cur);
