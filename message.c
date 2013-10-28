@@ -11,10 +11,6 @@
 #define LINE_LEN 1001 /* 998 + CR + LF + '\0' */
 /* http://cr.yp.to/proto/maildir.html */
 
-int set_flags(struct flags f, const char *filename) {
-	return 0;
-}
-
 int message_list_contains(struct message_list **list, const char *path) {
 	struct message_list *iter;
 	for(iter = *list; iter != NULL; iter = iter->next) {
@@ -42,7 +38,7 @@ void message_list_destroy(struct message_list **list) {
 }
 
 /* Allocates and returns data, make sure to free this later */
-char *get_field(const char *field, FILE **fp) {
+char *get_field(const char *field, FILE *fp) {
 	char buf[LINE_LEN];
 	char *data = NULL;
 
@@ -53,14 +49,14 @@ char *get_field(const char *field, FILE **fp) {
 	}
 	strcpy(data, "(empty)");
 
-	while(!feof(*fp)) {
-		fgets(buf, LINE_LEN, *fp);
+	while(!feof(fp)) {
+		fgets(buf, LINE_LEN, fp);
 		if(!strncmp(buf, field, strlen(field))) {
 			strcpy(data, buf + strlen(field));
 			/* This takes care of "folding", muliple-line representation
 			 * See 2.2.3 in RFC5322 */
-			while(!feof(*fp)) {
-				fgets(buf, LINE_LEN, *fp);
+			while(!feof(fp)) {
+				fgets(buf, LINE_LEN, fp);
 				if(buf[0] == ' ' || buf[0] == '\t') {
 					data = realloc(data, strlen(data) + LINE_LEN);
 					strcpy(data + strlen(data), buf);
@@ -79,6 +75,9 @@ char *get_field(const char *field, FILE **fp) {
 	return data;
 }
 
+void write_message_flags(struct message *m) {
+	
+}
 
 void populate_message_fields(struct message *m, const char *filename) {
 	FILE *fp;
@@ -88,10 +87,10 @@ void populate_message_fields(struct message *m, const char *filename) {
 		fprintf(stderr, "Cannot open file '%s'\n", filename);
 		return;
 	}
-	m->subject = get_field("Subject: ", &fp);
-	m->to = get_field("To: ", &fp);
-	m->from = get_field("From: ", &fp);
-	m->date = get_field("Date: ", &fp);
+	m->subject = get_field("Subject: ", fp);
+	m->to = get_field("To: ", fp);
+	m->from = get_field("From: ", fp);
+	m->date = get_field("Date: ", fp);
 
 	fclose(fp);
 }
