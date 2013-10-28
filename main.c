@@ -129,6 +129,7 @@ void readmail(const char *dirname, struct message_list **cache) {
 			continue;
 		}
 		else if(message_list_contains(cache, path)) {
+			free(path);
 			continue;
 		}
 		else {
@@ -179,10 +180,6 @@ int main(int argc, char *argv[]) {
 	int i;
 
 	readmail("mail", &cache);
-
-	for(iter = cache, i=0; iter != NULL; iter = iter->next, i++) {
-		printf("%d, Subject: %s\n", i, iter->m->subject);
-	}
 
 	message_list_destroy(&cache);
 	
