@@ -13,6 +13,6 @@ struct message_list {
 int set_flags(struct flags, const char *);
 int message_list_contains(struct message_list **, const char *);
 void message_list_destroy(struct message_list **);
-char *get_field(const char *, FILE **);
+char *get_field(const char *, FILE *);
 void populate_message_fields(struct message *, const char *);
 void readmail(const char *, struct message_list **);

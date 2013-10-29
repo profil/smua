@@ -12,6 +12,7 @@
 /* http://cr.yp.to/proto/maildir.html */
 
 int message_list_contains(struct message_list **list, const char *path) {
+	/* rewrite using binary search lookup */
 	struct message_list *iter;
 	for(iter = *list; iter != NULL; iter = iter->next) {
 		if(!strncmp(iter->m->path, path, strlen(iter->m->path)))
@@ -39,6 +40,8 @@ void message_list_destroy(struct message_list **list) {
 
 /* Allocates and returns data, make sure to free this later */
 char *get_field(const char *field, FILE *fp) {
+	/* rewrite this entire function
+	 * parse all the header fields, save the ones we want */
 	char buf[LINE_LEN];
 	char *data = NULL;
 
@@ -97,10 +100,11 @@ void populate_message_fields(struct message *m, const char *filename) {
 
 /* Call message_list_destroy() on cache after use. */
 void readmail(const char *dirname, struct message_list **cache) {
+	int pathlen;
 	DIR *dp;
 	struct dirent *ep;
 	struct message_list *cur, *iter;
-	char path[1024];
+	char path[1024]; /* fix this */
 
 	dp = opendir(dirname);
 	if(dp == NULL) {
@@ -109,7 +113,8 @@ void readmail(const char *dirname, struct message_list **cache) {
 	}
 
 	while((ep = readdir(dp)) != NULL) {
-		snprintf(path, strlen(dirname) + strlen(ep->d_name) + 2, "%s/%s", dirname, ep->d_name);
+		pathlen = strlen(dirname) + strlen(ep->d_name) + 2;
+		snprintf(path, 1024, "%s/%s", dirname, ep->d_name);
 		if (!strcmp(ep->d_name, ".") || !strcmp(ep->d_name, "..")) {
 			continue;
 		}
@@ -124,7 +129,7 @@ void readmail(const char *dirname, struct message_list **cache) {
 			cur->m = malloc(sizeof(struct message));
 			
 			cur->m->path = NULL;
-			cur->m->path = malloc(strlen(dirname) + strlen(ep->d_name) + 2);
+			cur->m->path = malloc(pathlen);
 			
 			if(cur == NULL || cur->m == NULL || cur->m->path == NULL) {
 				fprintf(stderr, "Cannot allocate memory.\n");
